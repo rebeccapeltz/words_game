@@ -24,6 +24,7 @@
   --sage: #b9c49a;
   --display: "Silkscreen", ui-monospace, "Courier New", monospace;
   --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --reserve: 380px; /* height used by everything except the scene */
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -32,11 +33,11 @@ body {
   background: var(--bark);
   color: var(--cream);
   font: 400 1rem/1.5 var(--body);
-  padding-block: 20px 32px;
+  padding-block: 14px 20px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-.game { max-width: 880px; margin-inline: auto; display: grid; gap: 14px; min-width: 0; }
+.game { max-width: 880px; margin-inline: auto; display: grid; gap: 10px; min-width: 0; }
 header h1 {
   margin: 0;
   font: 700 1.7rem/1.1 var(--display);
@@ -51,6 +52,10 @@ header p { margin: 6px 0 0; color: var(--sage); max-width: 60ch; }
   overflow: hidden;
   background: var(--bark-2);
   line-height: 0;
+  margin-inline: auto;
+  /* scene width follows the window height so the whole page fits without scrolling */
+  width: min(100%, max(360px, calc((100vh - var(--reserve)) * 2)));
+  width: min(100%, max(360px, calc((100dvh - var(--reserve)) * 2)));
 }
 canvas { display: block; width: 100%; height: auto; aspect-ratio: 2 / 1; image-rendering: pixelated; }
 
@@ -62,7 +67,7 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 2 / 1; image-r
 @media (min-width: 720px) { .tray { grid-template-columns: repeat(10, minmax(0, 1fr)); } }
 .tray li {
   position: relative;
-  min-height: 54px;
+  min-height: 46px;
   display: grid; place-items: center;
   padding: 16px 4px 5px;
   border: 2px dashed var(--bark-3);
@@ -87,14 +92,14 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 2 / 1; image-r
   background: var(--bark-2);
   border: 2px solid var(--bark-3);
   border-radius: 10px;
-  padding: 18px;
-  display: grid; gap: 12px;
+  padding: 14px 16px;
+  display: grid; gap: 10px;
   min-width: 0;
 }
 .meta { font: 400 0.78rem/1 var(--display); letter-spacing: 0.1em; color: var(--sage); text-transform: uppercase; }
 .panel h2 {
   margin: 0;
-  font: 700 clamp(1.25rem, 3.6vw, 1.7rem)/1.25 var(--body);
+  font: 700 clamp(1.15rem, 3.2vw, 1.5rem)/1.25 var(--body);
   text-wrap: balance;
 }
 .pattern { min-height: 1.7em; font: 700 1.1rem/1.5 var(--display); letter-spacing: 0.3em; color: var(--amber); }
@@ -138,6 +143,11 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .recap em { font-style: normal; font: 400 0.64rem/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; }
 .recap li[data-state="got"] em { color: var(--moss); }
 .recap li[data-state="missed"] em { color: var(--clay); }
+
+@media (max-height: 780px) {
+  :root { --reserve: 330px; }
+  header p { display: none; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .tray li[data-state] { animation: none; }
