@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Word Run</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Silkscreen:wght@400;700&display=swap">
+<style>
+/* Layout: a wide scrolling scene on top, a 10-slot word tray under it, then the question panel.
+   One committed earthy look (bark, honey, moss), so there is no separate light theme. */
+:root {
+  --bark: #241a12;
+  --bark-2: #3a2a1d;
+  --bark-3: #57402b;
+  --cream: #f6ead2;
+  --amber: #f2a93b;
+  --amber-deep: #8a5410;
+  --moss: #8fb468;
+  --olive: #4f6b3a;
+  --clay: #e08a6c;
+  --sage: #b9c49a;
+  --display: "Silkscreen", ui-monospace, "Courier New", monospace;
+  --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bark);
+  color: var(--cream);
+  font: 400 1rem/1.5 var(--body);
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.game { max-width: 880px; margin-inline: auto; display: grid; gap: 14px; min-width: 0; }
+header h1 {
+  margin: 0;
+  font: 700 1.7rem/1.1 var(--display);
+  letter-spacing: 0.05em;
+  color: var(--amber);
+}
+header p { margin: 6px 0 0; color: var(--sage); max-width: 60ch; }
+
+.stage {
+  border: 3px solid var(--bark-3);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bark-2);
+  line-height: 0;
+}
+canvas { display: block; width: 100%; height: auto; aspect-ratio: 2 / 1; image-rendering: pixelated; }
+
+.tray {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+@media (min-width: 720px) { .tray { grid-template-columns: repeat(10, minmax(0, 1fr)); } }
+.tray li {
+  position: relative;
+  min-height: 54px;
+  display: grid; place-items: center;
+  padding: 16px 4px 5px;
+  border: 2px dashed var(--bark-3);
+  border-radius: 6px;
+  font: 700 0.84rem/1.1 var(--body);
+  text-align: center;
+  overflow-wrap: anywhere;
+  color: var(--cream);
+}
+.tray .n {
+  position: absolute; top: 3px; left: 6px;
+  font: 400 0.62rem/1 var(--display);
+  color: #a48a66;
+}
+.tray li[data-state="got"] { border: 2px solid var(--amber); background: var(--amber); color: #2b1a00; animation: pop 0.35s ease-out; }
+.tray li[data-state="got"] .n { color: var(--amber-deep); }
+.tray li[data-state="missed"] { border: 2px solid var(--clay); background: var(--bark-2); animation: pop 0.35s ease-out; }
+.tray li[data-state="missed"] .n { color: var(--clay); }
+@keyframes pop { 0% { transform: scale(0.8); } 70% { transform: scale(1.08); } 100% { transform: scale(1); } }
+
+.panel {
+  background: var(--bark-2);
+  border: 2px solid var(--bark-3);
+  border-radius: 10px;
+  padding: 18px;
+  display: grid; gap: 12px;
+  min-width: 0;
+}
+.meta { font: 400 0.78rem/1 var(--display); letter-spacing: 0.1em; color: var(--sage); text-transform: uppercase; }
+.panel h2 {
+  margin: 0;
+  font: 700 clamp(1.25rem, 3.6vw, 1.7rem)/1.25 var(--body);
+  text-wrap: balance;
+}
+.pattern { min-height: 1.7em; font: 700 1.1rem/1.5 var(--display); letter-spacing: 0.3em; color: var(--amber); }
+form { display: flex; flex-wrap: wrap; gap: 8px; }
+input[type="text"] {
+  flex: 1 1 200px; min-width: 0;
+  font: 400 1.15rem/1.2 var(--body);
+  padding: 12px 14px;
+  background: var(--bark);
+  color: var(--cream);
+  border: 2px solid var(--bark-3);
+  border-radius: 6px;
+}
+input[type="text"]::placeholder { color: #a48a66; }
+button {
+  font: 700 0.8rem/1 var(--display);
+  letter-spacing: 0.06em;
+  min-height: 48px;
+  padding: 12px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button.primary { background: var(--amber); color: #2b1a00; border: 2px solid var(--amber); }
+button.primary:hover:not(:disabled) { background: #ffbd5c; border-color: #ffbd5c; }
+button.ghost { background: transparent; color: var(--sage); border: 2px solid var(--bark-3); }
+button.ghost:hover:not(:disabled) { border-color: var(--sage); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--moss); outline-offset: 2px; }
+.fb { min-height: 1.6em; margin: 0; font-weight: 700; }
+.fb.ok { color: var(--moss); }
+.fb.bad { color: var(--clay); }
+.fb.info { color: var(--sage); }
+
+.score { font: 700 2.2rem/1 var(--display); color: var(--amber); margin: 0; }
+.recap { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); }
+.recap li { min-width: 0; padding: 10px 12px; border-radius: 6px; border: 2px solid var(--bark-3); background: var(--bark); }
+.recap li[data-state="got"] { border-color: var(--moss); }
+.recap li[data-state="missed"] { border-color: var(--clay); }
+.recap b { display: block; font-size: 1.05rem; }
+.recap span { display: block; font-size: 0.86rem; color: var(--sage); overflow-wrap: anywhere; }
+.recap em { font-style: normal; font: 400 0.64rem/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; }
+.recap li[data-state="got"] em { color: var(--moss); }
+.recap li[data-state="missed"] em { color: var(--clay); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tray li[data-state] { animation: none; }
+}
+</style>
+<style>[hidden]{display:none!important}</style>
+</head>
+<body>
+<main class="game">
+  <header>
+    <h1>Word Run</h1>
+    <p>Answer each question with one word to bump the block and release a word coin. Collect all 10 words to reach the flag.</p>
+  </header>
+
+  <div class="stage"><canvas id="scene" width="800" height="400" role="img" aria-label="A small owl runs along a hilly path toward a flag, bumping word blocks along the way."></canvas></div>
+
+  <ol class="tray" id="tray" aria-label="Words collected"></ol>
+
+  <section class="panel" id="askPanel" aria-labelledby="qText">
+    <div class="meta" id="qNum">Question 1 of 10</div>
+    <h2 id="qText"></h2>
+    <div class="pattern" id="pattern" aria-live="polite"></div>
+    <form id="form" autocomplete="off">
+      <input type="text" id="answer" placeholder="One word answer" aria-label="Your one word answer" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go">
+      <button type="submit" class="primary" id="hitBtn">Hit the block</button>
+      <button type="button" class="ghost" id="hintBtn">Hint</button>
+    </form>
+    <p class="fb info" id="fb" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="panel" id="resultPanel" hidden aria-labelledby="resultTitle">
+    <div class="meta">Flag reached</div>
+    <h2 id="resultTitle">Run complete</h2>
+    <p class="score" id="score"></p>
+    <p id="scoreNote" class="fb info"></p>
+    <ul class="recap" id="recap"></ul>
+    <form id="againForm"><button type="submit" class="primary" id="againBtn">Play again</button></form>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Content: 10 questions, each with a one-word answer ----------
+  var POOLS = [
+    [ // Block 1: numbers
+      { q: "How many days are in a week?",            word: "Seven",  answers: ["seven", "7"] },
+      { q: "How many sides does a triangle have?",    word: "Three",  answers: ["three", "3"] },
+      { q: "How many months are in a year?",          word: "Twelve", answers: ["twelve", "12"] },
+      { q: "How many legs does a spider have?",       word: "Eight",  answers: ["eight", "8"] }
+    ],
+    [ // Block 2: baby animals
+      { q: "What do you call a baby dog?",            word: "Puppy",  answers: ["puppy"] },
+      { q: "What do you call a baby cat?",            word: "Kitten", answers: ["kitten"] },
+      { q: "What do you call a baby cow?",            word: "Calf",   answers: ["calf"] },
+      { q: "What do you call a baby horse?",          word: "Foal",   answers: ["foal"] }
+    ],
+    [ // Block 3: space and science
+      { q: "Which planet is known as the Red Planet?",           word: "Mars",    answers: ["mars"] },
+      { q: "What force pulls objects toward the Earth?",         word: "Gravity", answers: ["gravity"] },
+      { q: "Which planet is famous for its bright rings?",       word: "Saturn",  answers: ["saturn"] },
+      { q: "What natural satellite orbits the Earth?",           word: "Moon",    answers: ["moon", "the moon"] }
+    ],
+    [ // Block 4: capital cities
+      { q: "What is the capital city of France?",     word: "Paris",  answers: ["paris"] },
+      { q: "What is the capital city of Japan?",      word: "Tokyo",  answers: ["tokyo"] },
+      { q: "What is the capital city of Italy?",      word: "Rome",   answers: ["rome"] },
+      { q: "What is the capital city of Egypt?",      word: "Cairo",  answers: ["cairo"] }
+    ],
+    [ // Block 5: opposites
+      { q: "What is the opposite of “hot”?",   word: "Cold",   answers: ["cold"] },
+      { q: "What is the opposite of “up”?",    word: "Down",   answers: ["down"] },
+      { q: "What is the opposite of “day”?",   word: "Night",  answers: ["night"] },
+      { q: "What is the opposite of “full”?",  word: "Empty",  answers: ["empty"] }
+    ],
+    [ // Block 6: geography
+      { q: "What is the largest ocean on Earth?",                word: "Pacific",    answers: ["pacific"] },
+      { q: "What is the largest continent on Earth?",            word: "Asia",       answers: ["asia"] },
+      { q: "Which icy continent surrounds the South Pole?",      word: "Antarctica", answers: ["antarctica"] },
+      { q: "In which direction does the sun rise?",              word: "East",       answers: ["east"] }
+    ],
+    [ // Block 7: food and drink
+      { q: "What sweet food do bees make?",                      word: "Honey",  answers: ["honey"] },
+      { q: "What do hens lay?",                                  word: "Eggs",   answers: ["eggs", "egg"] },
+      { q: "What hot drink is made from dried leaves steeped in water?", word: "Tea", answers: ["tea"] },
+      { q: "Which fruit is dried to make raisins?",              word: "Grapes", answers: ["grapes", "grape"] }
+    ],
+    [ // Block 8: time and seasons
+      { q: "Which season comes after winter?",        word: "Spring",   answers: ["spring"] },
+      { q: "Which day of the week comes after Friday?", word: "Saturday", answers: ["saturday"] },
+      { q: "Which month comes after March?",          word: "April",    answers: ["april"] },
+      { q: "Which season comes after summer?",        word: "Autumn",   answers: ["autumn", "fall"] }
+    ],
+    [ // Block 9: nature and the body
+      { q: "Which star sits in the middle of our solar system?", word: "Sun",    answers: ["sun", "the sun"] },
+      { q: "Which organ pumps blood around the body?",           word: "Heart",  answers: ["heart"] },
+      { q: "Which gas do humans need to breathe to live?",       word: "Oxygen", answers: ["oxygen"] },
+      { q: "What do we call frozen water?",                      word: "Ice",    answers: ["ice"] }
+    ],
+    [ // Block 10: words about words
+      { q: "What do you call a word that means the same as another word?", word: "Synonym",   answers: ["synonym"] },
+      { q: "What do you call a word with the opposite meaning?",           word: "Antonym",   answers: ["antonym"] },
+      { q: "What kind of word names an action, like run or jump?",         word: "Verb",      answers: ["verb"] },
+      { q: "What kind of word describes a noun, like big or red?",         word: "Adjective", answers: ["adjective"] }
+    ]
+  ];
+  var TOTAL = POOLS.length;
+  var QUESTIONS = [];      // the 10 questions for the current run, one per block
+  var lastPick = [];       // which variant each block used last run, so replays differ
+  function pickRound() {
+    var out = [];
+    for (var k = 0; k < TOTAL; k++) {
+      var pool = POOLS[k], idx;
+      do { idx = Math.floor(Math.random() * pool.length); } while (pool.length > 1 && idx === lastPick[k]);
+      lastPick[k] = idx;
+      out.push(pool[idx]);
+    }
+    return out;
+  }
+
+  // ---------- Elements ----------
+  var canvas = document.getElementById("scene");
+  var ctx = canvas.getContext("2d");
+  var trayEl = document.getElementById("tray");
+  var askPanel = document.getElementById("askPanel");
+  var resultPanel = document.getElementById("resultPanel");
+  var qNum = document.getElementById("qNum");
+  var qText = document.getElementById("qText");
+  var patternEl = document.getElementById("pattern");
+  var form = document.getElementById("form");
+  var input = document.getElementById("answer");
+  var hitBtn = document.getElementById("hitBtn");
+  var hintBtn = document.getElementById("hintBtn");
+  var fb = document.getElementById("fb");
+  var scoreEl = document.getElementById("score");
+  var scoreNote = document.getElementById("scoreNote");
+  var recapEl = document.getElementById("recap");
+  var againForm = document.getElementById("againForm");
+  var againBtn = document.getElementById("againBtn");
+
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var finePointer = window.matchMedia && window.matchMedia("(pointer: fine)").matches;
+
+  // ---------- World constants (logical canvas is 800 x 400) ----------
+  var W = 800, H = 400, GROUND = 330;
+  var OWL_X = 150, OWL_H = 36;
+  var BLOCK = 44, BLOCK_GAP = 18;
+  var BLOCK_BOTTOM = GROUND - OWL_H - BLOCK_GAP;
+  var BLOCK_Y = BLOCK_BOTTOM - BLOCK;
+  var FIRST_BLOCK = 480, BLOCK_SPACING = 440;
+  var SPEED = reduce ? 5000 : 260;
+  var GRAV = 1500, JUMP_V = 420;
+  var FLAG_X = FIRST_BLOCK + (TOTAL - 1) * BLOCK_SPACING + 720;
+
+  function blockWorldX(i) { return FIRST_BLOCK + i * BLOCK_SPACING; }
+  function camForBlock(i) { return blockWorldX(i) - (OWL_X - 4); }
+
+  // ---------- State ----------
+  var G;
+  function newGame() {
+    QUESTIONS = pickRound();
+    G = {
+      i: 0, mode: "ask", cam: camForBlock(0),
+      owlX: OWL_X, owlY: 0, vy: 0, walking: false,
+      attempts: 0, hint: 0, revealed: false,
+      results: [], blocks: [], coin: null,
+      shake: 0, t: 0, cheerT: 0
+    };
+    for (var k = 0; k < TOTAL; k++) G.blocks.push({ hit: false, bump: 0 });
+  }
+
+  // ---------- Tray ----------
+  function buildTray() {
+    trayEl.textContent = "";
+    for (var k = 0; k < TOTAL; k++) {
+      var li = document.createElement("li");
+      var n = document.createElement("span"); n.className = "n"; n.textContent = String(k + 1);
+      var w = document.createElement("span"); w.className = "w";
+      li.appendChild(n); li.appendChild(w);
+      li.setAttribute("aria-label", "Word " + (k + 1) + ": not collected yet");
+      trayEl.appendChild(li);
+    }
+  }
+  function fillTray(k, state) {
+    var li = trayEl.children[k];
+    li.setAttribute("data-state", state);
+    li.querySelector(".w").textContent = QUESTIONS[k].word;
+    li.setAttribute("aria-label", "Word " + (k + 1) + ": " + QUESTIONS[k].word + (state === "missed" ? " (revealed)" : " (collected)"));
+  }
+
+  // ---------- Question flow ----------
+  function norm(s) {
+    s = String(s).toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+    return s.replace(/^the /, "");
+  }
+  function say(msg, kind) { fb.textContent = msg; fb.className = "fb " + (kind || "info"); }
+
+  function showQuestion() {
+    var q = QUESTIONS[G.i];
+    qNum.textContent = "Question " + (G.i + 1) + " of " + TOTAL;
+    qText.textContent = q.q;
+    G.attempts = 0; G.hint = 0; G.revealed = false;
+    patternEl.textContent = "";
+    input.value = "";
+    input.disabled = false; hitBtn.disabled = false; hintBtn.disabled = false;
+    say("Type one word and press Enter.", "info");
+    if (finePointer) input.focus();
+  }
+  function lockInput() { input.disabled = true; hitBtn.disabled = true; hintBtn.disabled = true; }
+
+  function blanks(word, showFirst) {
+    var out = [];
+    for (var k = 0; k < word.length; k++) out.push(k === 0 && showFirst ? word[0].toUpperCase() : "_");
+    return out.join(" ");
+  }
+  hintBtn.addEventListener("click", function () {
+    if (G.mode !== "ask") return;
+    var word = QUESTIONS[G.i].word;
+    G.hint = Math.min(2, G.hint + 1);
+    patternEl.textContent = blanks(word, G.hint >= 2);
+    say(word.length + " letters" + (G.hint >= 2 ? ", starting with " + word[0].toUpperCase() + "." : "."), "info");
+    if (finePointer) input.focus();
+  });
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (G.mode !== "ask") return;
+    var val = norm(input.value);
+    if (!val) { say("Type a one-word answer first.", "info"); return; }
+    if (val.indexOf(" ") !== -1) { say("Answers are a single word.", "info"); return; }
+    var q = QUESTIONS[G.i];
+    if (q.answers.indexOf(val) !== -1) { onCorrect(); } else { onWrong(); }
+  });
+
+  function onCorrect() {
+    G.results[G.i] = G.revealed ? "missed" : "got";
+    say(G.revealed ? "Right. You will remember it next time." : "Correct! Jump!", "ok");
+    lockInput();
+    G.mode = "jump"; G.owlY = 0; G.vy = JUMP_V;
+  }
+  function onWrong() {
+    G.attempts += 1;
+    if (!reduce) G.shake = 0.4;
+    if (G.attempts >= 3) {
+      G.revealed = true;
+      var word = QUESTIONS[G.i].word;
+      patternEl.textContent = word.toUpperCase();
+      say("The word is “" + word + "”. Type it to keep running.", "bad");
+    } else {
+      say(G.attempts === 2 ? "Not quite. Try again, or press Hint." : "Not quite. Try again.", "bad");
+    }
+    input.select();
+  }
+
+  // ---------- Results ----------
+  function showResults() {
+    var got = 0;
+    recapEl.textContent = "";
+    for (var k = 0; k < TOTAL; k++) {
+      var st = G.results[k] || "missed";
+      if (st === "got") got++;
+      var li = document.createElement("li");
+      li.setAttribute("data-state", st);
+      var em = document.createElement("em"); em.textContent = st === "got" ? "Got it" : "Learned";
+      var b = document.createElement("b"); b.textContent = (k + 1) + ". " + QUESTIONS[k].word;
+      var sp = document.createElement("span"); sp.textContent = QUESTIONS[k].q;
+      li.appendChild(em); li.appendChild(b); li.appendChild(sp);
+      recapEl.appendChild(li);
+    }
+    scoreEl.textContent = got + " / " + TOTAL;
+    scoreNote.textContent = got === TOTAL
+      ? "All ten words on your own. Well run."
+      : "Words marked Learned were revealed. Play again to lock them in.";
+    askPanel.hidden = true;
+    resultPanel.hidden = false;
+    againBtn.focus({ preventScroll: true });
+  }
+  againForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    newGame(); buildTray();
+    resultPanel.hidden = true; askPanel.hidden = false;
+    showQuestion();
+  });
+
+  // ---------- Update ----------
+  function land() {
+    fillTray(G.i, G.results[G.i]);
+    if (G.i === TOTAL - 1) { G.mode = "toflag"; G.walking = true; }
+    else { G.i += 1; G.mode = "run"; G.walking = true; }
+  }
+
+  function update(dt) {
+    G.t += dt;
+    if (G.shake > 0) G.shake = Math.max(0, G.shake - dt);
+    for (var k = 0; k < G.blocks.length; k++) if (G.blocks[k].bump > 0) G.blocks[k].bump = Math.max(0, G.blocks[k].bump - dt);
+    if (G.coin) { G.coin.t += dt; if (G.coin.t > 1.4) G.coin = null; }
+
+    if (G.mode === "run") {
+      var target = camForBlock(G.i);
+      G.cam = Math.min(target, G.cam + SPEED * dt);
+      if (G.cam >= target) { G.mode = "ask"; G.walking = false; showQuestion(); }
+    } else if (G.mode === "jump") {
+      G.owlY += G.vy * dt;
+      G.vy -= GRAV * dt;
+      var b = G.blocks[G.i];
+      if (!b.hit && G.owlY >= BLOCK_GAP && G.vy > 0) {
+        b.hit = true; b.bump = 0.25;
+        G.coin = { t: 0, x: blockWorldX(G.i) + BLOCK / 2, word: QUESTIONS[G.i].word, missed: G.results[G.i] === "missed" };
+        G.vy = -60;
+      }
+      if (G.owlY <= 0 && G.vy < 0) { G.owlY = 0; G.vy = 0; land(); }
+    } else if (G.mode === "toflag") {
+      var fcam = FLAG_X - 580;
+      if (G.cam < fcam) {
+        G.cam = Math.min(fcam, G.cam + SPEED * dt);
+      } else {
+        G.owlX += (reduce ? 600 : 150) * dt;
+        if (G.owlX >= 548) { G.owlX = 548; G.mode = "cheer"; G.walking = false; G.cheerT = 0; }
+      }
+    } else if (G.mode === "cheer") {
+      G.cheerT += dt;
+      G.owlY = reduce ? 0 : Math.abs(Math.sin(G.cheerT * 7)) * 16;
+      if (G.cheerT > 1.5) { G.owlY = 0; G.mode = "done"; showResults(); }
+    }
+  }
+
+  // ---------- Drawing ----------
+  var C = {
+    skyTop: "#e3b36a", skyBottom: "#f7e7bd",
+    sun: "#fff4cf", sunGlow: "rgba(255,244,207,0.35)",
+    hillFar: "#b7b17a", hillMid: "#8a9a5b", bush: "#587a3d", bushDark: "#46632f",
+    grass: "#8fb468", grassDark: "#6f9650", dirt: "#6b4a2f", dirtDark: "#5a3d26", dirtLight: "#7d5a3a",
+    cloud: "rgba(255,248,230,0.85)",
+    blockFill: "#f2a93b", blockEdge: "#8a5410", blockLight: "#ffd488", blockUsed: "#9a7a52", blockUsedEdge: "#5d4630", ink: "#3a2308",
+    flagPole: "#f6ead2", flagCloth: "#d9775a"
+  };
+  function rnd(k) { var s = Math.sin(k * 12.9898) * 43758.5453; return s - Math.floor(s); }
+  function eachRep(cam, spacing, par, cb) {
+    var start = Math.floor((cam * par) / spacing) - 1;
+    var count = Math.ceil(W / spacing) + 3;
+    for (var k = start; k < start + count; k++) cb(k * spacing - cam * par, k);
+  }
+  function hills(cam, par, base, amp, wave, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (var x = 0; x <= W + 8; x += 8) {
+      var wx = x + cam * par;
+      var y = base - amp * (0.5 + 0.5 * Math.sin(wx / wave)) - amp * 0.35 * Math.sin(wx / (wave * 0.37) + 1.3);
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W, H);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  var OWL_ROWS = [
+    "..D......D..",
+    ".DBD....DBD.",
+    ".DBBBBBBBBD.",
+    "DBWWWBBWWWBD",
+    "DBWKWYYWKWBD",
+    "DBWWWYYWWWBD",
+    "DBBBBBBBBBBD",
+    ".DBCCCCCCBD.",
+    ".DBCCCCCCBD.",
+    ".DBBCCCCBBD.",
+    "..DBBBBBBD..",
+    "...YY..YY..."
+  ];
+  var FEET_B = "..YY....YY..";
+  var FEET_AIR = ".YY......YY.";
+  var OWL_COL = { D: "#4a2c1f", B: "#a8754a", C: "#f3d9a4", W: "#ffffff", K: "#241a12", Y: "#f2a93b" };
+
+  function drawOwl(x, bottomY, walkFrame, airborne) {
+    var s = 3, top = bottomY - OWL_H;
+    for (var r = 0; r < OWL_ROWS.length; r++) {
+      var row = OWL_ROWS[r];
+      if (r === OWL_ROWS.length - 1) row = airborne ? FEET_AIR : (walkFrame ? FEET_B : row);
+      for (var c = 0; c < row.length; c++) {
+        var ch = row[c];
+        if (ch === ".") continue;
+        ctx.fillStyle = OWL_COL[ch];
+        ctx.fillRect(x + c * s, top + r * s, s, s);
+      }
+    }
+  }
+
+  function drawCloud(x, y, w) {
+    ctx.fillStyle = C.cloud;
+    ctx.fillRect(x + 8, y + 10, w - 16, 14);
+    ctx.fillRect(x + 20, y, w * 0.5, 14);
+    ctx.fillRect(x, y + 16, w, 10);
+  }
+
+  function drawBlock(sx, b, active) {
+    var y = BLOCK_Y;
+    if (b.bump > 0) y -= Math.sin((1 - b.bump / 0.25) * Math.PI) * 10;
+    var shakeX = (active && G.shake > 0) ? Math.sin(G.t * 70) * 3 : 0;
+    sx += shakeX;
+    var used = b.hit;
+    ctx.fillStyle = used ? C.blockUsedEdge : C.blockEdge;
+    ctx.fillRect(sx, y, BLOCK, BLOCK);
+    ctx.fillStyle = used ? C.blockUsed : C.blockFill;
+    ctx.fillRect(sx + 3, y + 3, BLOCK - 6, BLOCK - 6);
+    if (!used) {
+      ctx.fillStyle = C.blockLight;
+      ctx.fillRect(sx + 3, y + 3, BLOCK - 6, 4);
+      ctx.fillRect(sx + 3, y + 3, 4, BLOCK - 6);
+      ctx.fillStyle = C.ink;
+      ctx.font = "700 18px Silkscreen, ui-monospace, monospace";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("Aa", sx + BLOCK / 2, y + BLOCK / 2 + 1);
+      if (active && G.mode === "ask") {
+        ctx.strokeStyle = "rgba(255,244,207," + (0.45 + 0.35 * Math.sin(G.t * 4)) + ")";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(sx - 4, y - 4, BLOCK + 8, BLOCK + 8);
+      }
+    }
+  }
+
+  function drawCoin() {
+    if (!G.coin) return;
+    var c = G.coin, p = c.t / 1.4;
+    var sx = c.x - G.cam;
+    var y = BLOCK_Y - 14 - p * 46;
+    ctx.globalAlpha = p < 0.7 ? 1 : Math.max(0, 1 - (p - 0.7) / 0.3);
+    ctx.fillStyle = c.missed ? "#d8c9a6" : "#ffd25a";
+    ctx.beginPath(); ctx.arc(sx, y, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = C.blockEdge; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = "700 15px Silkscreen, ui-monospace, monospace";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    var tw = ctx.measureText(c.word).width + 18;
+    ctx.fillStyle = "#241a12";
+    ctx.fillRect(sx - tw / 2, y - 48, tw, 26);
+    ctx.fillStyle = "#f6ead2";
+    ctx.fillText(c.word, sx, y - 34);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawFlag(sx) {
+    ctx.fillStyle = C.blockEdge; ctx.fillRect(sx - 14, GROUND - 14, 36, 14);
+    ctx.fillStyle = C.flagPole; ctx.fillRect(sx, GROUND - 150, 6, 140);
+    ctx.fillStyle = "#ffd25a"; ctx.fillRect(sx - 2, GROUND - 156, 10, 8);
+    var wave = Math.sin(G.t * 4) * 4;
+    ctx.fillStyle = C.flagCloth;
+    ctx.beginPath();
+    ctx.moveTo(sx + 6, GROUND - 146);
+    ctx.lineTo(sx + 56 + wave, GROUND - 126);
+    ctx.lineTo(sx + 6, GROUND - 106);
+    ctx.closePath(); ctx.fill();
+  }
+
+  function draw() {
+    var rect = canvas.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    var pw = Math.max(1, Math.round(rect.width * dpr));
+    if (canvas.width !== pw) { canvas.width = pw; canvas.height = Math.round(pw * H / W); }
+    var sc = canvas.width / W;
+    ctx.setTransform(sc, 0, 0, sc, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+
+    var cam = G.cam;
+    var g = ctx.createLinearGradient(0, 0, 0, GROUND);
+    g.addColorStop(0, C.skyTop); g.addColorStop(1, C.skyBottom);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = C.sunGlow; ctx.beginPath(); ctx.arc(620, 170, 82, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C.sun; ctx.beginPath(); ctx.arc(620, 170, 50, 0, Math.PI * 2); ctx.fill();
+
+    eachRep(cam, 280, 0.12, function (x, k) { drawCloud(x, 30 + rnd(k) * 90, 60 + rnd(k + 9) * 40); });
+    hills(cam, 0.2, GROUND - 40, 70, 150, C.hillFar);
+    hills(cam, 0.45, GROUND - 6, 46, 95, C.hillMid);
+
+    eachRep(cam, 210, 0.85, function (x, k) {
+      var r = 14 + rnd(k + 3) * 10, bx = x + rnd(k) * 80;
+      ctx.fillStyle = C.bush;
+      ctx.beginPath(); ctx.arc(bx, GROUND, r, Math.PI, 0); ctx.arc(bx + r, GROUND, r * 0.8, Math.PI, 0); ctx.arc(bx - r, GROUND, r * 0.7, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = C.bushDark; ctx.fillRect(bx - r * 1.7, GROUND - 3, r * 3.4, 3);
+    });
+
+    // ground
+    ctx.fillStyle = C.dirt; ctx.fillRect(0, GROUND, W, H - GROUND);
+    ctx.fillStyle = C.grass; ctx.fillRect(0, GROUND, W, 10);
+    ctx.fillStyle = C.grassDark; ctx.fillRect(0, GROUND + 10, W, 3);
+    var off = -(cam % 40);
+    for (var x = off - 40; x < W + 40; x += 40) {
+      ctx.fillStyle = C.dirtDark; ctx.fillRect(x, GROUND + 13, 3, H - GROUND - 13);
+      ctx.fillStyle = C.dirtLight; ctx.fillRect(x + 12, GROUND + 28, 14, 6); ctx.fillRect(x + 4, GROUND + 52, 10, 6);
+    }
+    ctx.fillStyle = C.dirtDark; ctx.fillRect(0, GROUND + 38, W, 3);
+
+    // flag and blocks
+    var fsx = FLAG_X - cam;
+    if (fsx > -80 && fsx < W + 80) drawFlag(fsx);
+    for (var k = 0; k < TOTAL; k++) {
+      var bsx = blockWorldX(k) - cam;
+      if (bsx > -80 && bsx < W + 80) drawBlock(bsx, G.blocks[k], k === G.i);
+    }
+
+    // owl
+    var frame = G.walking && !reduce ? (Math.floor(G.t * 8) % 2) : 0;
+    var bob = G.walking && !reduce ? (frame ? 1 : 0) : 0;
+    var air = G.owlY > 0;
+    var ox = G.owlX + ((G.shake > 0) ? Math.sin(G.t * 70) * 2 : 0);
+    drawOwl(ox, GROUND - G.owlY - bob, frame, air);
+
+    drawCoin();
+  }
+
+  // ---------- Boot ----------
+  newGame();
+  buildTray();
+  qText.textContent = QUESTIONS[0].q;
+  showQuestion();
+
+  var last = performance.now();
+  function loop(now) {
+    var dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  if (document.fonts && document.fonts.load) {
+    document.fonts.load("700 18px Silkscreen").catch(function () {});
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
